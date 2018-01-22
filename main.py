@@ -1,56 +1,71 @@
 import matplotlib.pyplot as plt
 import csv
+import sys
 import math
 from itertools import groupby
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 
-def get_common_movies(person1, person2):
-  movies1 = map(lambda x: x['movieId'], person1)
-  movies2 = map(lambda x: x['movieId'], person2)
-  return [val for val in movies1 if val in movies2]
+def print_similar(similar, common, lbl):
+  values = similar.values()
+  keys = similar.keys()
+  plt.plot(values, common.values(), 'ro', label='sine')
+  fix, ax = plt.subplots()
+  ax.scatter(values, common.values())
+  plt.ylabel('Number of common ranked movies')
+  plt.xlabel('Similarity')
+  for i, txt in enumerate(keys):
+    if(values[i] > 0.3):
+      ax.annotate(txt, (values[i], common.values()[i]))
+  plt.show()
 
-def pearson_similarity(person1, person2):
-  intersection = get_common_movies(person1, person2)
-  n = len(intersection)
+def euclidean_distance(moviesUser1, moviesUser2, threshold = 3):
+  movies1 = map(lambda x: x['movieId'], moviesUser1)
+  movies2 = map(lambda x: x['movieId'], moviesUser2)
+  intersection = [val for val in movies1 if val in movies2]
+  # if the users do not have at least (threshold) common ranked movies
+  # we say that the distance between them are Infinite
+  if(len(intersection) < threshold):
+    return float('inf')
 
-  m1 = [[x for x in person1 if x['movieId'] == item] for item in intersection ]
-  n1 = map(lambda x: float(x[0]['rating']), m1)
-  numPow = map(lambda x: pow(x,2), n1)
-  s1 = sum(n1)
-  ss1 = sum(numPow)
+  sum = 0
+  for key in intersection:
+      match1 = filter(lambda x: x['movieId'] == key, moviesUser1)
+      match2 = filter(lambda x: x['movieId'] == key, moviesUser2)
+      sum += math.sqrt(pow(float(match1[0]['rating']) - float(match2[0]['rating']), 2))
+  return 1 / (1+sum)
 
-  m2 = [[x for x in person2 if x['movieId'] == item] for item in intersection ]
-  n2 = map(lambda x: float(x[0]['rating']), m2)
-  numPow2 = map(lambda x: pow(x,2), n2)
-  s2 = sum(n2)
-  ss2 = sum(numPow2)
+def manhattan_distance(moviesUser1, moviesUser2, threshold = 3):
+  movies1 = map(lambda x: x['movieId'], moviesUser1)
+  movies2 = map(lambda x: x['movieId'], moviesUser2)
+  intersection = [val for val in movies1 if val in movies2]
+  # if the users do not have at least (threshold) common ranked movies
+  # we say that the distance between them are Infinite
+  if(len(intersection) < threshold):
+    return float('inf')
 
-  movies1 = {}
-  movies2 = {}
-  for item in person1:
-    movies1[item['movieId']] = float(item['rating'])
-  for item in person2:
-    movies2[item['movieId']] = float(item['rating'])
-
-  ps = sum([movies1[c] * movies2[c] for c in intersection])
-  num = n*ps - (s1*s2)
-  den = math.sqrt((n*ss1 - math.pow(s1,2))*(n*ss2 - math.pow(s2,2)))
-  return num/den if den != 0 else 0
-
-
+  sum = 0
+  for key in intersection:
+      match1 = filter(lambda x: x['movieId'] == key, moviesUser1)
+      match2 = filter(lambda x: x['movieId'] == key, moviesUser2)
+      sum += math.sqrt(pow(float(match1[0]['rating']) - float(match2[0]['rating']), 2))
+  return 1 / (1+sum)
 
 with open('ratings_small.csv') as csvfile:
   reader = csv.DictReader(csvfile)
   moviesPerUser = {}
-  baseKey = '1'
-  list1 = []
-  list2 = []
+  baseKey = str(sys.argv[1]) if len(sys.argv) > 1 else '1'
+  similar = {}
+  common = {}
   for key, row in groupby(list(reader), lambda x: x['userId']):
     moviesPerUser[key] = list(row)
-    intersection = get_common_movies(moviesPerUser[baseKey], moviesPerUser[key])
-    list1.append(pearson_similarity(moviesPerUser[baseKey], moviesPerUser[key]))
-    list2.append(len(intersection))
+    movies1 = map(lambda x: x['movieId'], moviesPerUser[baseKey])
+    movies2 = map(lambda x: x['movieId'], moviesPerUser[key])
+    intersection = [val for val in movies1 if val in movies2]
 
-  plt.plot(list1, list2, 'ro')
-  plt.axis([min(list1), max(list1), min(list2), max(list2)])
-  plt.show()
+    d = euclidean_distance(moviesPerUser[baseKey], moviesPerUser[key])
+    if(d<float('inf') and key != baseKey):
+      similar[key] = d
+      common[key] = len(intersection)
+    
+  print_similar(similar, common, "Euclidean Distance")
